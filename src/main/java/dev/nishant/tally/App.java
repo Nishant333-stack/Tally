@@ -47,10 +47,23 @@ public final class App implements AutoCloseable {
     public record Config(String dbUrl, String dbUser, String dbPassword, int poolSize, int port,
                          Path migrations, Path staticDir) {
         public static Config fromEnv() {
+            String dbUrl = env("DB_URL", "jdbc:postgresql://127.0.0.1:5432/tally");
+            String dbUser = env("DB_USER", "postgres");
+            String dbPassword = env("DB_PASSWORD", "");
+            // Hosted Postgres (Railway, Render, Heroku) hands out postgres://user:pass@host:port/db
+            String platformUrl = System.getenv("DATABASE_URL");
+            if (platformUrl != null && !platformUrl.isBlank()) {
+                java.net.URI u = java.net.URI.create(platformUrl);
+                String[] creds = u.getRawUserInfo().split(":", 2);
+                dbUser = java.net.URLDecoder.decode(creds[0], java.nio.charset.StandardCharsets.UTF_8);
+                dbPassword = creds.length > 1 ? java.net.URLDecoder.decode(creds[1], java.nio.charset.StandardCharsets.UTF_8) : "";
+                dbUrl = "jdbc:postgresql://" + u.getHost() + ":" + (u.getPort() > 0 ? u.getPort() : 5432) + u.getPath()
+                        + (u.getRawQuery() != null ? "?" + u.getRawQuery() : "");
+            }
             return new Config(
-                env("DB_URL", "jdbc:postgresql://127.0.0.1:5432/tally"),
-                env("DB_USER", "postgres"),
-                env("DB_PASSWORD", ""),
+                dbUrl,
+                dbUser,
+                dbPassword,
                 Integer.parseInt(env("DB_POOL_SIZE", "20")),
                 Integer.parseInt(env("PORT", "8080")),
                 Path.of(env("MIGRATIONS_DIR", "db/migrations")),
